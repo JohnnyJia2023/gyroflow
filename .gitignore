@@ -14,3 +14,9 @@ gyroflow.log
 resources/camera_presets
 *.exe
 .qmlls.ini
+release/
+.bin/
+.ffmpeg_brew/
+gyroflow_src/
+ui.qrc
+batch_*.log

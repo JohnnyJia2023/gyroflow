@@ -71,12 +71,49 @@ fn compile_qml(dir: &str, qt_include_path: &str, qt_library_path: &str) {
     println!("cargo:rustc-link-lib=static:+whole-archive=qmlcache");
 }
 
+fn formula_env_name(formula: &str) -> String {
+    let mut out = String::new();
+    for ch in formula.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_uppercase());
+        } else {
+            out.push('_');
+        }
+    }
+    out.push_str("_DIR");
+    out
+}
+
+fn brew_prefix_or_env(formula: &str) -> Option<String> {
+    let env_name = formula_env_name(formula);
+    println!("cargo:rerun-if-env-changed={}", env_name);
+    if let Ok(prefix) = env::var(&env_name) {
+        let prefix = prefix.trim().to_owned();
+        if !prefix.is_empty() {
+            return Some(prefix);
+        }
+    }
+
+    let output = Command::new("brew").args(["--prefix", formula]).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let prefix = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    if prefix.is_empty() {
+        None
+    } else {
+        Some(prefix)
+    }
+}
+
 fn main() {
     let qt_include_path = env::var("DEP_QT_INCLUDE_PATH").unwrap();
     let qt_library_path = env::var("DEP_QT_LIBRARY_PATH").unwrap();
     let qt_version      = env::var("DEP_QT_VERSION").unwrap();
 
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
+    println!("cargo:rerun-if-env-changed=FFMPEG_DIR");
 
     if let Ok(out_dir) = env::var("OUT_DIR") {
         println!("cargo::rustc-check-cfg=cfg(compiled_qml)");
@@ -197,7 +234,12 @@ fn main() {
             config.include(format!("{}/include", std::env::var("FFMPEG_DIR").unwrap()));
         },
         "macos" | "ios" => {
-            println!("cargo:rustc-link-search={}/lib", std::env::var("FFMPEG_DIR").unwrap());
+            let ffmpeg_dir = env::var("FFMPEG_DIR").expect("FFMPEG_DIR is not set; run the build through gyroflow_build.bash so it can select ffmpeg@7");
+            println!("cargo:rustc-link-search={}/lib", ffmpeg_dir);
+            let x264_dir = brew_prefix_or_env("x264").expect("x264 is required; install Homebrew x264 or set X264_DIR");
+            let x265_dir = brew_prefix_or_env("x265").expect("x265 is required; install Homebrew x265 or set X265_DIR");
+            println!("cargo:rustc-link-search={}/lib", x264_dir);
+            println!("cargo:rustc-link-search={}/lib", x265_dir);
             println!("cargo:rustc-link-lib=static:+whole-archive=x264");
             println!("cargo:rustc-link-lib=static=x265");
         },

@@ -503,7 +503,9 @@ pub fn run(open_file: &mut String, open_preset: &mut String) -> bool {
                 }
             }).unwrap_or_default();
             for file in &videos {
+                log::info!("CLI queue.add_file start: {}", file);
                 queue.add_file(path_to_url(file), path_to_url(&gyro_file), additional_data.to_string());
+                log::info!("CLI queue.add_file queued: {}", file);
             }
         }
 

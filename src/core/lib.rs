@@ -169,6 +169,7 @@ impl StabilizationManager {
     }
 
     pub fn load_gyro_data<T: Read + Seek, F: Fn(f64)>(&self, stream: &mut T, filesize: usize, url: &str, is_main_video: bool, options: &gyro_source::FileLoadOptions, progress_cb: F, cancel_flag: Arc<AtomicBool>) -> std::result::Result<(), GyroflowCoreError> {
+        log::info!("load_gyro_data: start for {url}");
         {
             let params = self.params.read();
             let mut gyro = self.gyro.write();
@@ -195,7 +196,9 @@ impl StabilizationManager {
         };
 
         let cancel_flag2 = cancel_flag.clone();
+        log::info!("load_gyro_data: parsing telemetry for {url}");
         let mut md = GyroSource::parse_telemetry_file(stream, filesize, &url, options, size, fps, progress_cb, cancel_flag2)?;
+        log::info!("load_gyro_data: telemetry parsed for {url}");
         if md.detected_source.as_ref().map(|v| v.starts_with("GoPro ")).unwrap_or_default() {
             // If gopro reports rolling shutter value, it already applied it, ie. the video is already corrected
             md.frame_readout_time = None;
@@ -256,9 +259,11 @@ impl StabilizationManager {
         }
         let camera_id = md.camera_identifier.clone();
         if !cancel_flag.load(SeqCst) {
+            log::info!("load_gyro_data: loading telemetry into gyro source for {url}");
             let mut gyro = self.gyro.write();
             gyro.load_from_telemetry(md);
             gyro.file_load_options = options.clone();
+            log::info!("load_gyro_data: telemetry load complete for {url}");
         }
 
         if let Some(id) = camera_id {
@@ -520,9 +525,13 @@ impl StabilizationManager {
     }
 
     pub fn recompute_blocking(&self) {
+        log::info!("recompute_blocking: start");
         self.recompute_smoothness();
+        log::info!("recompute_blocking: smoothness complete");
         self.recompute_adaptive_zoom();
+        log::info!("recompute_blocking: adaptive zoom complete");
         self.recompute_undistortion();
+        log::info!("recompute_blocking: undistortion complete");
     }
 
     pub fn invalidate_ongoing_computations(&self) {
@@ -1923,7 +1932,13 @@ pub fn timestamp_at_frame(frame: i32, fps: f64) -> f64 { frame as f64 * 1000.0 /
 pub fn frame_at_timestamp(timestamp_ms: f64, fps: f64) -> i32 { (timestamp_ms * (fps / 1000.0)).round() as i32 }
 
 pub fn run_threaded<F>(cb: F) where F: FnOnce() + Send + 'static {
-    THREAD_POOL.spawn(cb);
+    ::log::info!("run_threaded: spawn requested");
+    THREAD_POOL.spawn(move || {
+        ::log::info!("run_threaded: worker started");
+        cb();
+        ::log::info!("run_threaded: worker finished");
+    });
+    ::log::info!("run_threaded: spawn returned");
 }
 
 use std::str::FromStr;

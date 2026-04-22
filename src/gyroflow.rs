@@ -50,6 +50,14 @@ cpp! {{
 fn entry() {
     let ui_live_reload = false;
 
+    if std::env::args().any(|arg| arg == "--version") {
+        use std::io::Write;
+        let mut out = std::io::stdout();
+        let _ = writeln!(out, "Gyroflow v{}", util::get_version());
+        let _ = out.flush();
+        return;
+    }
+
     #[cfg(target_os = "windows")]
     unsafe {
         use windows::Win32::System::Console::*;
